@@ -29,6 +29,14 @@ jobs:
       - name: Build with Gradle Wrapper
         run: ./gradlew build
 
+      # Find WAR file
+      - name: Find WAR file
+        id: find-war
+        run: |
+          WAR_FILE=$(find build/libs -name "*.war" | head -n 1)
+          echo "WAR_FILE=$WAR_FILE" >> $GITHUB_ENV
+          echo "WAR_NAME=$(basename $WAR_FILE)" >> $GITHUB_ENV
+
       # Generate timestamp for tag
       - name: Generate timestamp
         if: github.ref == 'refs/heads/main'
@@ -56,14 +64,21 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Upload JAR to GitHub Release
+      # Debug step to check file existence
+      - name: Debug - List build directory
+        run: |
+          echo "Contents of build/libs:"
+          ls -la build/libs/
+          echo "Found WAR file: ${{ env.WAR_FILE }}"
+
+      - name: Upload WAR to GitHub Release
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/libs/*.war
-          asset_name: ${{ github.event.repository.name }}-${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || steps.timestamp.outputs.timestamp }}.war
+          asset_path: ${{ env.WAR_FILE }}
+          asset_name: ${{ env.WAR_NAME }}
           asset_content_type: application/x-war
 
   dependency-submission:
