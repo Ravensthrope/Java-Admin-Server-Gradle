@@ -36,12 +36,13 @@ jobs:
       # Step 5: Create GitHub release if this workflow runs on a tagged commit
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
+        id: create_release # Added ID to reference this step
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}
-          release_name: "Release ${{ github.ref }}"
+          tag_name: ${{ github.ref_name }} # Changed to ref_name for cleaner tag name
+          release_name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
 
@@ -52,9 +53,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create-release.outputs.upload_url }}
-          asset_path: ./build/libs/your-project-name.jar # Replace with the actual path to your JAR file
-          asset_name: your-project-name.jar # Replace with your preferred file name
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # Fixed reference to create_release step
+          asset_path: ./build/libs/*.jar # Using wildcard to match the JAR file
+          asset_name: ${{ github.event.repository.name }}-${{ github.ref_name }}.jar # Dynamic name based on repo and tag
           asset_content_type: application/java-archive
 
   dependency-submission:
