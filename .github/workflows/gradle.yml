@@ -4,7 +4,7 @@ on:
   push:
     branches: ["main"]
     tags:
-      - "v*" # Trigger workflow when a tag is pushed, e.g., v1.0.0
+      - "v*"
   pull_request:
     branches: ["main"]
 
@@ -12,59 +12,52 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Ensure write permission to create a release
+      contents: write
 
     steps:
-      # Step 1: Checkout the code
       - uses: actions/checkout@v4
 
-      # Step 2: Set up JDK
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: "17"
           distribution: "temurin"
 
-      # Step 3: Grant execute permissions to gradlew
       - name: Grant execute permissions for gradlew
         run: chmod +x ./gradlew
 
-      # Step 4: Build the project
       - name: Build with Gradle Wrapper
         run: ./gradlew build
 
-      # Step 5: Create GitHub release if this workflow runs on a tagged commit
+      # Create a release for every push to main
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        id: create_release # Added ID to reference this step
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref_name }} # Changed to ref_name for cleaner tag name
-          release_name: Release ${{ github.ref_name }}
+          tag_name: ${{ github.sha }} # Use commit SHA if no tag
+          release_name: Release ${{ github.sha }}
           draft: false
           prerelease: false
 
-      # Step 6: Upload the JAR to the GitHub release
       - name: Upload JAR to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # Fixed reference to create_release step
-          asset_path: ./build/libs/*.jar # Using wildcard to match the JAR file
-          asset_name: ${{ github.event.repository.name }}-${{ github.ref_name }}.jar # Dynamic name based on repo and tag
-          asset_content_type: application/java-archive
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build/libs/*.war # Changed to .war since your build produces a WAR file
+          asset_name: ${{ github.event.repository.name }}-${{ github.sha }}.war
+          asset_content_type: application/x-war
 
   dependency-submission:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
-      # Dependency submission setup
       - uses: actions/checkout@v4
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -73,4 +66,4 @@ jobs:
           distribution: "temurin"
 
       - name: Generate and submit dependency graph
-        uses: gradle/actions/dependency-submission@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.0.0
+        uses: gradle/actions/dependency-submission@af1da67850ed9a4cedd57bfd976089dd991e2582
