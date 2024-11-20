@@ -3,14 +3,16 @@ name: Java CI with Gradle
 on:
   push:
     branches: ["main"]
+    tags:
+      - "v*" # Trigger workflow when a tag is pushed, e.g., v1.0.0
   pull_request:
     branches: ["main"]
 
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # Ensure write permission to create a release
 
     steps:
       # Step 1: Checkout the code
@@ -31,12 +33,37 @@ jobs:
       - name: Build with Gradle Wrapper
         run: ./gradlew build
 
+      # Step 5: Create GitHub release if this workflow runs on a tagged commit
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: "Release ${{ github.ref }}"
+          draft: false
+          prerelease: false
+
+      # Step 6: Upload the JAR to the GitHub release
+      - name: Upload JAR to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: ./build/libs/your-project-name.jar # Replace with the actual path to your JAR file
+          asset_name: your-project-name.jar # Replace with your preferred file name
+          asset_content_type: application/java-archive
+
   dependency-submission:
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
+      # Dependency submission setup
       - uses: actions/checkout@v4
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -44,6 +71,5 @@ jobs:
           java-version: "17"
           distribution: "temurin"
 
-      # Generate and submit the dependency graph
       - name: Generate and submit dependency graph
         uses: gradle/actions/dependency-submission@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.0.0
