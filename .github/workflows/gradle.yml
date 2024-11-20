@@ -27,15 +27,15 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build with Gradle Wrapper
-        run: ./gradlew build
+        run: ./gradlew bootJar bootWar # Build both JAR and WAR
 
-      # Find WAR file
-      - name: Find WAR file
-        id: find-war
+      # Find JAR file
+      - name: Find JAR file
+        id: find-jar
         run: |
-          WAR_FILE=$(find build/libs -name "*.war" | head -n 1)
-          echo "WAR_FILE=$WAR_FILE" >> $GITHUB_ENV
-          echo "WAR_NAME=$(basename $WAR_FILE)" >> $GITHUB_ENV
+          JAR_FILE=$(find build/libs -name "*.jar" ! -name "*plain.jar" | head -n 1)
+          echo "JAR_FILE=$JAR_FILE" >> $GITHUB_ENV
+          echo "JAR_NAME=$(basename $JAR_FILE)" >> $GITHUB_ENV
 
       # Generate timestamp for tag
       - name: Generate timestamp
@@ -52,6 +52,13 @@ jobs:
           git tag ${{ steps.timestamp.outputs.timestamp }}
           git push origin ${{ steps.timestamp.outputs.timestamp }}
 
+      # Debug step to check files
+      - name: Debug - List build directory
+        run: |
+          echo "Contents of build/libs:"
+          ls -la build/libs/
+          echo "Found JAR file: ${{ env.JAR_FILE }}"
+
       # Create GitHub release
       - name: Create GitHub Release
         id: create_release
@@ -64,22 +71,15 @@ jobs:
           draft: false
           prerelease: false
 
-      # Debug step to check file existence
-      - name: Debug - List build directory
-        run: |
-          echo "Contents of build/libs:"
-          ls -la build/libs/
-          echo "Found WAR file: ${{ env.WAR_FILE }}"
-
-      - name: Upload WAR to GitHub Release
+      - name: Upload JAR to GitHub Release
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ env.WAR_FILE }}
-          asset_name: ${{ env.WAR_NAME }}
-          asset_content_type: application/x-war
+          asset_path: ${{ env.JAR_FILE }}
+          asset_name: ${{ env.JAR_NAME }}
+          asset_content_type: application/java-archive
 
   dependency-submission:
     runs-on: ubuntu-latest
