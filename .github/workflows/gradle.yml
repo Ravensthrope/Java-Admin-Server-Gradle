@@ -29,28 +29,41 @@ jobs:
       - name: Build with Gradle Wrapper
         run: ./gradlew build
 
-      # Create a release for every push to main
+      # Generate timestamp for tag
+      - name: Generate timestamp
+        if: github.ref == 'refs/heads/main'
+        id: timestamp
+        run: echo "timestamp=$(date +'v0.1.%Y%m%d.%H%M%S')" >> $GITHUB_OUTPUT
+
+      # Create tag for main branch pushes
+      - name: Create tag
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git tag ${{ steps.timestamp.outputs.timestamp }}
+          git push origin ${{ steps.timestamp.outputs.timestamp }}
+
+      # Create GitHub release
       - name: Create GitHub Release
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.sha }} # Use commit SHA if no tag
-          release_name: Release ${{ github.sha }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || steps.timestamp.outputs.timestamp }}
+          release_name: Release ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || steps.timestamp.outputs.timestamp }}
           draft: false
           prerelease: false
 
       - name: Upload JAR to GitHub Release
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/libs/*.war # Changed to .war since your build produces a WAR file
-          asset_name: ${{ github.event.repository.name }}-${{ github.sha }}.war
+          asset_path: ./build/libs/*.war
+          asset_name: ${{ github.event.repository.name }}-${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || steps.timestamp.outputs.timestamp }}.war
           asset_content_type: application/x-war
 
   dependency-submission:
